@@ -6,20 +6,23 @@ const isLocalhost = Boolean(
 
 export function register() {
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      const swUrl = `${window.location.origin}/serviceWorker.js`;
+    return new Promise((resolve, reject) => {
+      window.addEventListener('load', () => {
+        const swUrl = `${window.location.origin}/serviceWorker.js`;
 
-      if (isLocalhost) {
-        checkValidServiceWorker(swUrl);
-      } else {
-        registerValidSW(swUrl);
-      }
+        if (isLocalhost) {
+          checkValidServiceWorker(swUrl).then(resolve).catch(reject);
+        } else {
+          registerValidSW(swUrl).then(resolve).catch(reject);
+        }
+      });
     });
   }
+  return Promise.resolve(); // Jeśli Service Worker nie jest wspierany
 }
 
 function registerValidSW(swUrl) {
-  navigator.serviceWorker
+  return navigator.serviceWorker
     .register(swUrl)
     .then((registration) => {
       console.log('Service Worker zarejestrowany pomyślnie:', registration);
@@ -40,23 +43,13 @@ function registerValidSW(swUrl) {
           }
         });
       });
-    })
-    .catch((error) => {
-      console.error('Błąd podczas rejestracji Service Workera:', error);
-    });
 
-  // Nasłuchiwanie wiadomości od Service Workera
-  navigator.serviceWorker.addEventListener('message', (event) => {
-    if (event.data.type === 'SYNC_STARTED') {
-      console.log('Rozpoczęto synchronizację');
-    } else if (event.data.type === 'SYNC_COMPLETED') {
-      console.log('Zakończono synchronizację');
-    }
-  });
+      return registration;
+    });
 }
 
 function checkValidServiceWorker(swUrl) {
-  fetch(swUrl, {
+  return fetch(swUrl, {
     headers: { 'Service-Worker': 'script' },
   })
     .then((response) => {
@@ -65,13 +58,13 @@ function checkValidServiceWorker(swUrl) {
         response.status === 404 ||
         (contentType != null && contentType.indexOf('javascript') === -1)
       ) {
-        navigator.serviceWorker.ready.then((registration) => {
-          registration.unregister().then(() => {
+        return navigator.serviceWorker.ready.then((registration) => {
+          return registration.unregister().then(() => {
             window.location.reload();
           });
         });
       } else {
-        registerValidSW(swUrl);
+        return registerValidSW(swUrl);
       }
     })
     .catch(() => {
