@@ -1,12 +1,59 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ProductGrid from './components/ProductGrid';
 import Cart from './components/Cart';
 import PaymentPanel from './components/PaymentPanel';
 import TransactionHistory from './components/TransactionHistory';
+import { dbService } from './services/db';
+import { syncService } from './services/syncService';
 
 const App = () => {
   const [cartItems, setCartItems] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Funkcja do ładowania transakcji
+    const loadTransactions = async () => {
+      try {
+        setLoading(true);
+        // Pobierz transakcje z IndexedDB
+        const savedTransactions = await dbService.getTransactions();
+        console.log('Załadowano transakcje z IndexedDB:', savedTransactions.length);
+        // Sortuj transakcje od najnowszej
+        const sortedTransactions = savedTransactions.sort((a, b) => 
+          new Date(b.timestamp) - new Date(a.timestamp)
+        );
+        setTransactions(sortedTransactions);
+      } catch (error) {
+        console.error('Błąd podczas ładowania transakcji:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Sprawdź stan bazy danych i załaduj transakcje
+    dbService.checkDatabase().then(dbInfo => {
+      console.log('Stan bazy danych:', dbInfo);
+      loadTransactions();
+    });
+
+    // Nasłuchiwanie zmian stanu połączenia
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const handleOnline = () => {
+    syncService.syncWithServer();
+  };
+
+  const handleOffline = () => {
+    // Możemy pokazać użytkownikowi informację o trybie offline
+  };
 
   const handleAddToCart = (product) => {
     setCartItems(prevItems => {
@@ -46,7 +93,22 @@ const App = () => {
     return cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
   };
 
-  const handlePayment = (paymentDetails) => {
+  const downloadTransactionJson = (transaction) => {
+    const data = JSON.stringify(transaction, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const timestamp = new Date(transaction.timestamp).toISOString().split('.')[0].replace(/[:-]/g, '');
+    
+    a.href = url;
+    a.download = `transaction_${timestamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
+  const handlePayment = async (paymentDetails) => {
     const newTransaction = {
       id: Date.now(),
       timestamp: new Date(),
@@ -59,8 +121,28 @@ const App = () => {
       customer: paymentDetails.customer
     };
 
-    setTransactions(prev => [newTransaction, ...prev]);
-    setCartItems([]);
+    try {
+      // Zapisz lokalnie
+      await dbService.saveTransaction(newTransaction);
+      setTransactions(prev => [newTransaction, ...prev]);
+      setCartItems([]);
+
+      // Jeśli jest offline, pobierz plik JSON
+      if (!navigator.onLine) {
+        downloadTransactionJson(newTransaction);
+      }
+
+      // Jeśli jest połączenie, zarejestruj synchronizację
+      if (navigator.onLine) {
+        navigator.serviceWorker.ready.then(registration => {
+          registration.sync.register('sync-transactions');
+        });
+      }
+    } catch (error) {
+      console.error('Błąd podczas zapisywania transakcji:', error);
+      // W przypadku błędu, również pobierz plik JSON jako kopię zapasową
+      downloadTransactionJson(newTransaction);
+    }
   };
 
   const calculateDailyTotal = () => {
@@ -100,7 +182,13 @@ const App = () => {
           
           <div className="bg-white rounded-lg shadow p-4">
             <h2 className="text-xl font-semibold mb-4">Historia transakcji</h2>
-            <TransactionHistory transactions={transactions} />
+            {loading ? (
+              <div className="flex justify-center items-center h-32">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              </div>
+            ) : (
+              <TransactionHistory transactions={transactions} />
+            )}
           </div>
         </div>
 

@@ -7,14 +7,19 @@ const ProductGrid = ({ onAddToCart }) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [dataSource, setDataSource] = useState(null);
 
   useEffect(() => {
     const loadProducts = async () => {
       try {
         setLoading(true);
-        const data = await productsApi.getProducts();
-        setProducts(data);
-        const uniqueCategories = ['all', ...new Set(data.map(product => product.category))];
+        
+        // Pobierz produkty wraz z informacją o źródle
+        const { products, source } = await productsApi.getProducts();
+        setProducts(products);
+        setDataSource(source);
+        
+        const uniqueCategories = ['all', ...new Set(products.map(product => product.category))];
         setCategories(uniqueCategories);
       } catch (err) {
         setError('Nie udało się załadować produktów');
@@ -25,6 +30,25 @@ const ProductGrid = ({ onAddToCart }) => {
     };
 
     loadProducts();
+
+    // Dodaj nasłuchiwanie zmian stanu połączenia
+    const handleOnline = () => {
+      console.log('Przywrócono połączenie. Odświeżanie produktów...');
+      loadProducts();
+    };
+
+    const handleOffline = () => {
+      console.log('Utracono połączenie. Przełączanie na dane lokalne...');
+      loadProducts();
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   const filteredProducts = selectedCategory === 'all' 
@@ -55,20 +79,35 @@ const ProductGrid = ({ onAddToCart }) => {
 
   return (
     <div>
-      <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
-        {categories.map(category => (
-          <button
-            key={category}
-            onClick={() => setSelectedCategory(category)}
-            className={`px-4 py-2 rounded-lg whitespace-nowrap ${
-              selectedCategory === category
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-200 hover:bg-gray-300'
-            }`}
-          >
-            {category === 'all' ? 'Wszystkie' : category}
-          </button>
-        ))}
+      <div className="mb-4 flex justify-between items-center">
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {categories.map(category => (
+            <button
+              key={category}
+              onClick={() => setSelectedCategory(category)}
+              className={`px-4 py-2 rounded-lg whitespace-nowrap ${
+                selectedCategory === category
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 hover:bg-gray-300'
+              }`}
+            >
+              {category === 'all' ? 'Wszystkie' : category}
+            </button>
+          ))}
+        </div>
+        <div className="text-sm text-gray-600">
+          {dataSource === 'online' ? (
+            <span className="text-green-600 flex items-center gap-1">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              Dane online
+            </span>
+          ) : (
+            <span className="text-orange-600 flex items-center gap-1">
+              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+              Dane offline
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
