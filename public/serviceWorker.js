@@ -12,13 +12,18 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', (event) => {
+  console.log('Instalowanie Service Workera...');
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(urlsToCache))
+      .then((cache) => {
+        console.log('Cache otwarty');
+        return cache.addAll(urlsToCache);
+      })
   );
 });
 
 self.addEventListener('fetch', (event) => {
+  // Ignoruj żądania do chrome-extension i innych nieobsługiwanych schematów
   if (!event.request.url.startsWith('http')) {
     return;
   }
@@ -27,9 +32,11 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request)
       .then((response) => {
         if (response) {
+          console.log('Znaleziono w cache:', event.request.url);
           return response;
         }
 
+        console.log('Pobieranie z sieci:', event.request.url);
         return fetch(event.request)
           .then((response) => {
             if (!response || response.status !== 200 || response.type !== 'basic') {
@@ -40,6 +47,7 @@ self.addEventListener('fetch', (event) => {
               const responseToCache = response.clone();
               caches.open(CACHE_NAME)
                 .then((cache) => {
+                  console.log('Cachowanie:', event.request.url);
                   cache.put(event.request, responseToCache);
                 })
                 .catch(error => {
@@ -51,6 +59,7 @@ self.addEventListener('fetch', (event) => {
           })
           .catch(() => {
             if (event.request.mode === 'navigate') {
+              console.log('Wczytywanie strony offline');
               return caches.match(OFFLINE_URL);
             }
           });
@@ -58,24 +67,27 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-transactions') {
-    event.waitUntil(syncTransactions());
-  }
-});
-
 self.addEventListener('activate', (event) => {
+  console.log('Aktywacja Service Workera...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
+            console.log('Usuwanie starego cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     })
   );
+});
+
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-transactions') {
+    console.log('Rozpoczęcie synchronizacji transakcji');
+    event.waitUntil(syncTransactions());
+  }
 });
 
 async function syncTransactions() {
@@ -87,6 +99,8 @@ async function syncTransactions() {
       });
     });
 
+    // Tutaj dodamy później logikę synchronizacji
+    
     clients.forEach(client => {
       client.postMessage({
         type: 'SYNC_COMPLETED'
