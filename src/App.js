@@ -31,11 +31,7 @@ const App = () => {
       }
     };
 
-    // Sprawdź stan bazy danych i załaduj transakcje
-    dbService.checkDatabase().then(dbInfo => {
-      console.log('Stan bazy danych:', dbInfo);
-      loadTransactions();
-    });
+    loadTransactions();
 
     // Nasłuchiwanie zmian stanu połączenia
     window.addEventListener('online', handleOnline);
