@@ -5,20 +5,13 @@ const isLocalhost = Boolean(
 );
 
 export function register() {
-  if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
-    const publicUrl = new URL(process.env.PUBLIC_URL, window.location.href);
-    if (publicUrl.origin !== window.location.origin) {
-      return;
-    }
-
+  if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      const swUrl = `${process.env.PUBLIC_URL}/serviceWorker.js`;
+      const swUrl = `${window.location.origin}/serviceWorker.js`;
 
       if (isLocalhost) {
-        // Na lokalhoście sprawdź czy service worker istnieje
         checkValidServiceWorker(swUrl);
       } else {
-        // W produkcji po prostu zarejestruj service worker
         registerValidSW(swUrl);
       }
     });
